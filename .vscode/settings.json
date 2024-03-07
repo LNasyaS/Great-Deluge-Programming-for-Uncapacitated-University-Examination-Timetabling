@@ -1,0 +1,28 @@
+{
+    "editor.fontSize": 14,
+    "terminal.integrated.fontSize": 12,
+    "window.zoomLevel": 1,
+    "workbench.iconTheme": "vs-seti",
+    "files.associations": {
+        "limits": "cpp",
+        "algorithm": "cpp",
+        "iostream": "cpp",
+        "array": "cpp",
+        "deque": "cpp",
+        "string": "cpp",
+        "unordered_map": "cpp",
+        "vector": "cpp",
+        "string_view": "cpp",
+        "initializer_list": "cpp",
+        "chrono": "cpp",
+        "ctime": "cpp",
+        "*.tcc": "cpp",
+        "cstddef": "cpp",
+        "istream": "cpp",
+        "ostream": "cpp",
+        "test": "cpp",
+        "iosfwd": "cpp",
+        "fstream": "cpp",
+        "utility": "cpp"
+    },
+}

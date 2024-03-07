@@ -1,0 +1,239 @@
+// THESIS LNASYA SYAFITRIE 2022
+// GREAT DELUGE ALGORITHM FOR UNCAPACITATED UNIVERSITY EXAMINATION TIMETABLING
+
+#include <iostream> // input output stream
+#include <cstdlib> // general utilities
+#include <fstream> // file Stream
+#include <vector> // store data
+#include <set>
+#include <iterator>
+#include <algorithm>   
+#include <random>
+#include <map> 
+#include <time.h>
+
+using namespace std; 
+
+// function to find if there are duplicates in a vector
+bool noDuplicates(vector<int> a, vector<int> b) {
+    a.insert(a.end(), b.begin(), b.end());
+    sort(a.begin(), a.end());
+    auto it = unique(a.begin(), a.end());
+    bool wasUnique = (it == a.end());
+
+    return wasUnique;
+}
+
+// main
+int main (int argc, char *argv[]) { 
+
+    // calculate computation time
+    clock_t tStart = clock();
+
+    /************************************************************ Opening the file ************************************************************/
+    cout << endl << "Opening the File...." << endl;
+    if (argc != 2) {
+        cout << "input_instance" << endl;
+        exit(1);
+    }
+    
+    ifstream inFile(argv[1], ios::in);
+    
+    // input file could not be opened
+    if (!inFile) {
+        cout << "Error!! Input file: " << argv[1] << " could not be opened" << endl;
+        inFile.close();
+        exit(-1);
+    } // end if
+
+    // input data
+    // number of exams, students, and periods
+    int noOfExams, noOfStudents, noOfPeriods = 0;
+
+    string temp;
+
+    inFile >> temp;
+    noOfExams = stoi(temp);
+    // cout << "Number of Exams: " << noOfExams << "\n";
+
+    inFile >> temp;
+    noOfStudents = stoi(temp);
+    // cout << "Number of Student: " << noOfStudents << "\n";
+
+    inFile >> temp;
+    noOfPeriods = stoi(temp);
+    // cout << "Number of Periods: " << noOfPeriods << "\n";
+
+    // number of students registered to an exams
+    string exams[noOfExams];
+    double students[noOfStudents];
+    
+    for (int i = 0; i < noOfExams; i++) {
+        inFile >> temp;
+        exams[i] = temp;
+        inFile >> temp;
+        students[i] = stoi(temp);
+        // cout << "Exam " << exams[i] << ": " << students[i] << " students. \n";
+    }
+
+    // exams taken by a student
+    vector<vector<string>> examsTaken;
+    int i = 0;
+    inFile >> temp;
+    while(!inFile.eof()) {
+        string studentsID = temp;
+        // cout << studentsID << " takes exam(s): ";
+        examsTaken.push_back(vector<string>());
+        while (studentsID == temp) { 
+            inFile >> temp;
+            examsTaken[i].push_back(temp);
+            inFile >> temp;
+        }
+        for (int j = 0; j < examsTaken[i].size(); j++) {
+            // cout << examsTaken[i][j] << " ";
+            }
+        i++;
+        // cout << endl;
+    }
+
+    inFile.close(); 
+
+    /************************************************************ Model Representation ************************************************************/
+    
+    // baca filenya kayak yg di bawah ini, biar ngga dua kali baca
+
+    // students in an exam
+    cout << endl << "Creating Model Representation...." << endl;
+    vector<vector<int>> examStudents;
+    for (int i = 0; i < noOfExams; i++) {
+        examStudents.push_back(vector<int>());
+        // cout << "Exam " << i << ":\n";
+        for (int j = 0; j < noOfStudents; j++) {
+            for (int k = 0; k < examsTaken[j].size(); k++) {
+                if (stoi(examsTaken[j][k]) - 1 == i) {
+                    // cout << j << "\t";
+                    examStudents[i].push_back(j - 1);
+                }
+            }
+        }
+        // cout << endl << endl;
+    }
+
+    // conflict list
+    cout << "Creating Conflict List...." << endl;
+    vector<set<int>> conflictList;
+    for (int i = 0; i < noOfExams; i++) {
+        conflictList.push_back(set<int>());
+        // cout << "Exam no. " << i + 1 << ": ";
+        for (int j = i + 1; j < noOfExams; j++) {
+            if (!noDuplicates(examStudents[i], examStudents[j])) {
+                conflictList[i].insert(j);
+                // cout << j + 1 << " ";
+            }
+        }
+        // cout << endl;
+    }
+
+    // conflict map
+    
+
+    cout << "Creating Conflict Matrix...." << endl;
+    int conflictMatrix[noOfExams][noOfExams] = {};
+    for (int i = 0; i < noOfExams; i++) {
+        for (int j = i + 1; j < noOfExams; j++) {
+            conflictMatrix[i][j] = !noDuplicates(examStudents[i], examStudents[j]);
+        }
+        // cout << endl;
+    }
+    
+    // bikin conflict matrix, per examnya ada berapa student yang conflict
+    // cout << "Creating Conflict Matrix...." << endl;
+    // int conflictMatrix[noOfExams][noOfExams];
+    // for (int i = 0; i < noOfExams; i++) {
+    //     for (int j = 0; j < noOfExams; j++) {
+    //         if (!noDuplicates(examStudents[i], examStudents[j])) {
+    //             conflictMatrix[i][j] = !noDuplicates(examStudents[i], examStudents[j]);
+    //             // cout << conflictMatrix[i][j] << " ";
+    //         }
+            
+    //     }
+    //     // cout << endl;
+    // }
+
+    /*************************************************************** Initial Solution ***************************************************************/
+
+    // generate initial solution, sebisa muungkin jadwal yg gaada conflict list, di cek dulu ada conflict ngga, conflict listnya dibenerin juga biar ga loop
+    
+    // generate random solution per exam
+    int seed = 10;
+    cout << "Generating Random Solution...." << endl;
+    int solutionExam[noOfExams];
+    mt19937 rng(seed);
+    uniform_int_distribution<int> gen(0, noOfPeriods-1);
+    for (int i = 0; i < noOfExams; i++) {
+        solutionExam[i] = gen(rng);
+        // cout << "exam " << i << ": period " << solutionExam[i] << endl;
+    }
+
+    // generate random solutions per period
+    vector<set<int>> solutionPeriods;
+    for (int i = 0; i < noOfPeriods; i++) {
+        solutionPeriods.push_back(set<int>());
+        // cout << "Period " << i << ":\t"; 
+        for (int j = 0; j < noOfExams; j++) {
+            if (i == solutionExam[j]) {
+                solutionPeriods[i].insert(j);
+                // cout << j << "\t";
+            }
+        }
+        // cout << endl;
+    }
+
+    /*************************************************************** constaints and penalties *******************************************************/
+
+    // counting conflicting exams (method 1)
+    clock_t tOne = clock();
+    int conflicts = 0;
+    for (int i = 0; i < noOfPeriods; i++) {
+        for (auto j = solutionPeriods[i].begin(); j != solutionPeriods[i].end(); ++j) {
+            for (auto k = solutionPeriods[i].begin(); k != solutionPeriods[i].end(); ++k) {
+                conflicts += conflictMatrix[*j][*k];
+            }
+        }
+    }
+    cout << "Method 1 total conflicts: " << conflicts;
+    printf(" (time taken: %.2fs)\n", (double)(clock() - tOne)/CLOCKS_PER_SEC);
+    
+    // counting conflicting exams (method 2)
+    clock_t tTwo = clock();
+    conflicts = 0;
+    for (int i = 0; i < noOfExams; i++) {
+        for (auto j = conflictList[i].begin(); j != conflictList[i].end(); ++j) {
+            conflicts += solutionExam[i] == solutionExam[*j];
+        }
+    }
+    cout << "Method 2 total conflicts: " << conflicts;
+    printf(" (time taken: %.2fs)\n", (double)(clock() - tTwo)/CLOCKS_PER_SEC);
+
+    // calculating penalties
+    int penaltyWeight[] = {0,16,8,4,2,1};
+
+    int penalty = 0;
+    for (int i = 0; i < noOfExams; i++) {
+        for (auto j = conflictList[i].begin(); j != conflictList[i].end(); ++j) {
+            int distance = abs(solutionExam[i] - solutionExam[*j]);
+            if (distance <= 5) {
+                penalty += penaltyWeight[distance];
+                cout << "Penalty for exam " << solutionExam[i] << " and " << solutionExam[*j] << ": " << penaltyWeight[distance] << endl;
+            }
+        }
+    }
+    cout << "Total penalties: " << penalty << endl;
+
+
+
+    // print computation time
+    printf("Time taken: %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
+
+    return 0;
+}

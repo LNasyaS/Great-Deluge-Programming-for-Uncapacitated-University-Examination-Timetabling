@@ -1,0 +1,730 @@
+// THESIS LNASYA SYAFITRIE 2022
+// GREAT DELUGE ALGORITHM FOR UNCAPACITATED UNIVERSITY EXAMINATION TIMETABLING
+
+#include <iostream> // input output stream
+#include <cstdlib> // general utilities
+#include <fstream> // file Stream
+#include <vector> // store data
+#include <set>
+#include <iterator>
+#include <algorithm>   
+#include <random>
+#include <map> 
+#include <time.h>
+
+using namespace std; 
+
+/************************************************************** helper functions **************************************************************/
+// For comparing 2nd column order
+bool sortcol(const vector<int>& v1,const vector<int>& v2) { 
+    return v1[1] > v2[1]; 
+} 
+
+// function to find max element of a vector
+int maxElement(vector<int> vector) {
+    int max = *max_element(vector.begin(), vector.end());
+    return max;
+}
+
+// function to find if there are duplicates in a vector
+bool noDuplicates(vector<int> a, vector<int> b) {
+    a.insert(a.end(), b.begin(), b.end());
+    sort(a.begin(), a.end());
+    auto it = unique(a.begin(), a.end());
+    bool wasUnique = (it == a.end());
+
+    return wasUnique;
+}
+
+// function to count duplicate elements
+int countDuplicates(vector<int> a, vector<int> b) {
+    a.insert(a.end(), b.begin(), b.end());
+    int allElements = a.size();
+    sort(a.begin(), a.end());
+    a.erase(unique(a.begin(), a.end()), a.end());
+    int duplicateElements = allElements - a.size();
+
+    return duplicateElements;
+}
+
+// count conflicts
+int countConflicts(vector<int> solutionExams, vector<vector<int>> conflictMatrix) {
+    int conflicts = 0;
+    for (int exam = 0; exam < solutionExams.size(); exam++) {
+        for (int exam2 = exam + 1; exam2 < solutionExams.size(); exam2++) {
+            if (solutionExams[exam] == solutionExams[exam2] && conflictMatrix[exam][exam2] > 0) {
+                conflicts++;
+            }
+        }
+    }
+    return conflicts;
+}
+
+// list of all exams in conflict
+vector<int> inConflict(vector<int> solution, vector<vector<int>> conflictMatrix) {
+    vector<int> conflictedExams;
+    for (int exam = 0; exam < solution.size(); exam++) {
+        for (int exam2 = exam + 1; exam2 < solution.size(); exam2++) {
+            if (solution[exam] == solution[exam2] && conflictMatrix[exam][exam2] > 0) {
+                conflictedExams.push_back(exam);
+                goto nextExam;
+            }
+        }
+        nextExam:;
+    }
+    return conflictedExams;
+}
+
+// list of exams in conflict with exam e
+vector<int> unsafeExams(int exam, vector<int> solution, vector<vector<int>> conflictMatrix) {
+    vector<int> unsafe;
+    for(int exam2 = 0; exam2 < solution.size(); exam2++) {
+        if (solution[exam] != solution[exam2] && conflictMatrix[exam][exam2] > 0) {
+            unsafe.push_back(exam2);
+        }
+    }
+    return unsafe;
+}
+
+// calculate penalty
+int calculatePenalty(vector<int> solutionExams, vector<vector<int>> conflictMatrix) {
+    int penaltyWeight[] = {0,16,8,4,2,1};
+    int penalty = 0;
+    for (int exam = 0; exam < solutionExams.size(); exam++) {
+        for (int exam2 = exam + 1; exam2 < solutionExams.size(); exam2++) {
+            int distance = abs(solutionExams[exam2] - solutionExams[exam]);
+            if (distance <= 5) {
+                penalty += conflictMatrix[exam][exam2] * penaltyWeight[distance];
+            }
+        }
+    }
+    return penalty;
+}
+
+/*********************************************************** local search operators ***********************************************************/
+
+// move exam (can move all)
+vector<int> moveAllExam(vector<int> solution, vector<vector<int>> conflictMatrix) {
+    mt19937 rng(time(NULL));
+    uniform_int_distribution<int> randAllExam(0, solution.size()-1);
+    uniform_int_distribution<int> randPeriod(0, maxElement(solution)-1);
+
+    int e = randAllExam(rng);
+    int p = randPeriod(rng);
+    
+    solution.at(e) = p;
+    return solution;
+}
+
+// move exam (only move conflicted exams)
+vector<int> moveExam(vector<int> solution, vector<vector<int>> conflictMatrix) {
+    vector<int> examConflicts = inConflict(solution, conflictMatrix);
+    mt19937 rng(time(NULL));
+    uniform_int_distribution<int> randExam(0, examConflicts.size()-1);
+    uniform_int_distribution<int> randPeriod(0, maxElement(solution)-1);
+
+    int e = examConflicts[randExam(rng)];
+    int p = randPeriod(rng);
+    
+    solution.at(e) = p;
+    return solution;
+}
+
+// swap exam
+vector<int> swapExams(vector<int> solution, vector<vector<int>> conflictMatrix) {
+    mt19937 rng(time(NULL));
+    
+    vector<int> examConflicts = inConflict(solution, conflictMatrix);
+    uniform_int_distribution<int> randExam(0, examConflicts.size()-1);
+    int e1 = examConflicts[randExam(rng)];
+
+    vector<int> sameStudents = unsafeExams(e1, solution, conflictMatrix);
+    uniform_int_distribution<int> randExam2(0, sameStudents.size()-1);
+    int e2 = sameStudents[randExam2(rng)];
+    // int e2 = examConflicts[randExam(rng)];
+    
+    int temp = solution[e1];
+    solution.at(e1) = solution[e2];
+    solution.at(e2) = temp;
+    return solution;
+}
+
+// kick exam
+// vector<int> kickExam(int e1, int e2, int p, vector<int> solutionExam) {
+//     solutionExam.at(e1) = solutionExam[e2];
+//     solutionExam.at(e2) = p;
+//     return solutionExam;
+// }
+
+vector<int> kickExam(vector<int> solution, vector<vector<int>> conflictMatrix) {
+    mt19937 rng(time(NULL));
+    
+    vector<int> examConflicts = inConflict(solution, conflictMatrix);
+    uniform_int_distribution<int> randExam(0, examConflicts.size()-1);
+    int e1 = examConflicts[randExam(rng)];
+
+    vector<int> sameStudents = unsafeExams(e1, solution, conflictMatrix);
+    uniform_int_distribution<int> randExam2(0, sameStudents.size()-1);
+    int e2 = sameStudents[randExam2(rng)];
+
+    uniform_int_distribution<int> randPeriod(0, maxElement(solution)-1);
+    int p = randPeriod(rng);
+
+    solution.at(e1) = solution[e2];
+    solution.at(e2) = p;
+    return solution;
+}
+
+// double kick exam
+vector<int> doubleKickExam(int e1, int e2, int e3, int p, vector<int> solutionExam) {
+    solutionExam.at(e1) = solutionExam[e2];
+    solutionExam.at(e2) = solutionExam[e3];
+    solutionExam.at(e3) = p;
+    return solutionExam;
+}
+
+// kempe chain
+vector<int> kempeChain(int e, int p, vector<int> solutionExam, vector<vector<int>> conflictMatrix) {
+    return solutionExam;
+}
+
+// swap periods
+vector<int> swapPeriods(int p1, int p2, vector<int> solutionExam) {
+    return solutionExam;
+}
+
+/*********************************************************** solution algorithms ***********************************************************/
+
+// initialize solution
+vector<int> initialSolution(vector<vector<int>> orderingSelection, int noOfPeriods, vector<vector<int>> conflictMatrix) {
+    vector<int> solution;
+    for (int exam = 0; exam < orderingSelection.size(); exam++) {
+        solution.push_back(-1);
+    }
+
+    for (int exam = 0; exam < orderingSelection.size(); exam++) {
+        // int sortedExam = studentsInExam[exam][0] - 1;
+        int sortedExam = orderingSelection[exam][0];
+        // cout << sortedExam << ": ";
+        // finding safe periods
+        for (int period = 0; period < noOfPeriods; period++) {
+            bool isSafe = 1;
+            for (int exam2 = 0; exam2 < orderingSelection.size(); exam2++) {
+                if (conflictMatrix[sortedExam][exam2] > 0 && period == solution[exam2]) {
+                    isSafe = 0;
+                }
+            }
+            if (isSafe) {
+                solution.at(sortedExam) = period;
+                goto nextExam;
+            }
+        }
+        solution.at(sortedExam) = 0;
+        nextExam:;
+    }
+    return solution;
+}
+
+// initialize solution (Saturation Degree)
+vector<int> initialSolutionSD(int noOfExams, int noOfPeriods, vector<vector<int>> conflictMatrix) {
+    vector<int> solution;
+    vector<vector<int>> saturationDegree;
+    for (int exam = 0; exam < noOfExams; exam++) {
+        solution.push_back(-1);
+        saturationDegree.push_back(vector<int>());
+        saturationDegree[exam].push_back(exam);
+        saturationDegree[exam].push_back(0);
+    }
+
+    // Initialize saturation degree
+    nextExam:
+    for (int exam = 0; exam < saturationDegree.size(); exam++) {
+        saturationDegree[exam].at(1) = 0;
+        for (int period = 0; period < noOfPeriods; period++) {
+            bool isSafe = 1;
+            for (int exam2 = 0; exam2 < noOfExams; exam2++) {
+                if (conflictMatrix[saturationDegree[exam][0]][exam2] > 0 && period == solution[exam2]) {
+                    isSafe = 0;
+                }
+            }
+            saturationDegree[exam].at(1) += isSafe;
+        }
+    }
+    sort(saturationDegree.begin(), saturationDegree.end(),sortcol);
+
+    for (int period = 0; period < noOfPeriods; period++) {
+        bool isSafe = 1;
+        for (int exam2 = 0; exam2 < noOfExams; exam2++) {
+            if (conflictMatrix[saturationDegree.back()[0]][exam2] > 0 && period == solution[exam2]) {
+                isSafe = 0;
+            }
+        }
+        if (isSafe) {
+            solution.at(saturationDegree.back()[0]) = period;
+            // cout << "Exam " << saturationDegree.back()[1] << ": " << solution.at(saturationDegree.back()[1]) << endl;
+            goto checkDone;
+        }
+        // cout << "Exam " << saturationDegree.back()[1] << ": " << solution.at(saturationDegree.back()[1]) << endl;
+    }
+    solution.at(saturationDegree.back()[0]) = 0;
+    
+    checkDone:
+    saturationDegree.pop_back();
+    if (saturationDegree.size() > 0) {
+        goto nextExam;
+    }
+
+    return solution;
+}
+
+// stage 1 great deluge
+vector<int> greatDelugeOld(vector<int> solution, vector<vector<int>> conflictMatrix, int maxIteration) {
+    // Setting Parameters
+    mt19937 rng(time(NULL));
+    vector<int> bestSolution = solution;
+    int cost = countConflicts(solution, conflictMatrix);
+    double desired = cost * 0.8;
+    double level = cost * 1.1;
+    double rainSpeed = (cost - desired)/maxIteration;
+    int bestCost = cost;
+    
+    // Start Algorithm
+    int i = 0;
+    int lastImproved = 0;
+    uniform_int_distribution<int> randOpt(1,2);
+    uniform_int_distribution<int> randRise(1,5);
+    while (i < maxIteration && cost > 0) {
+        vector<int> newSolution;
+        int chooseOpt = randOpt(rng);
+        switch (chooseOpt) {
+            case 1:
+                newSolution = moveExam(solution, conflictMatrix);
+                break;
+            case 2:
+                newSolution = swapExams(solution, conflictMatrix);
+                break;
+        }
+
+        // Update new cost:
+        int newCost = countConflicts(newSolution, conflictMatrix);
+        if (newCost <= cost || newCost <= level) {
+            solution = newSolution;
+            cost = newCost;
+            lastImproved = 0;
+        } else {
+            lastImproved++;
+        }
+        // Update best cost
+        if (newCost < bestCost) {
+            bestSolution = newSolution;
+            bestCost = newCost;
+        }
+        // Update water level
+        level -= rainSpeed;
+        i++;
+        
+        // If no improvement/reach desired cost
+
+        if (lastImproved >= (100) || level <= bestCost || cost <= desired) {
+            solution = bestSolution;
+            cost = bestCost;
+        }
+        if (cost <= desired) {
+            desired = cost * 0.8;
+            rainSpeed = (cost - desired) / (maxIteration - i);
+            level = cost * 1.5;
+        }
+    }
+    return bestSolution;
+}
+
+// stage 1 modified great deluge
+vector<int> greatDeluge(vector<int> solution, vector<vector<int>> conflictMatrix, int maxIteration) {
+    // Setting Parameters
+    mt19937 rng(time(NULL));
+    vector<int> bestSolution = solution;
+    int cost = countConflicts(solution, conflictMatrix);
+    double desired = cost * 0.8;
+    double level = cost * 2;
+    double rainSpeed = (cost - desired)/maxIteration;
+    int bestCost = cost;
+    
+    // Start Algorithm
+    int i = 0;
+    int lastImproved = 0;
+    uniform_int_distribution<int> randOpt(1,2);
+    uniform_int_distribution<int> randRise(1,5);
+    while (i < maxIteration && cost > 0) {
+        vector<int> newSolution;
+        int chooseOpt = randOpt(rng);
+        switch (chooseOpt) {
+            case 1:
+                newSolution = moveExam(solution, conflictMatrix);
+                break;
+            case 2:
+                newSolution = swapExams(solution, conflictMatrix);
+                break;
+            case 3:
+                newSolution = kickExam(solution, conflictMatrix);
+                break;
+        }
+
+        // Update new cost:
+        int newCost = countConflicts(newSolution, conflictMatrix);
+        if (newCost <= cost || newCost <= level) {
+            solution = newSolution;
+            cost = newCost;
+            lastImproved = 0;
+            // level -= rainSpeed * randRise(rng);
+            // cout << "c, bc, lv: (" << cost << ", " << bestCost << ", " << level << ")" << endl;
+        } else {
+            lastImproved++;
+        }
+        // Update best cost
+        if (newCost < bestCost) {
+            bestSolution = newSolution;
+            bestCost = newCost;
+        }
+        // Update water level
+        level -= rainSpeed;
+        
+        // If no improvement/reach desired cost
+        // if (lastImproved >= maxIteration/10) {
+        //     level += randRise(rng);
+        //     // desired = cost * 0.8;
+        //     cout << "c, bc, lv: (" << cost << ", " << bestCost << ", " << level << ")" << endl;
+        // }
+
+        if (lastImproved >= 100 || level <= bestCost || cost <= desired) {
+            solution = bestSolution;
+            cost = bestCost;
+            // cout << "c, bc, lv: (" << cost << ", " << bestCost << ", " << level << ")" << endl;
+        }
+        if (cost <= desired) {
+            desired = cost * 0.8;
+            rainSpeed = (cost - desired) / (maxIteration - i);
+            level = cost * 1.5;
+        }
+
+        i++;
+    }
+    return bestSolution;
+}
+
+vector<int> greatDelugePenalty(vector<int> solution, vector<vector<int>> conflictMatrix, int maxIteration) {
+    // Setting Parameters
+    mt19937 rng(time(NULL));
+    vector<int> bestSolution = solution;
+    int cost = calculatePenalty(solution, conflictMatrix);
+    double desired = cost * 0.8;
+    double level = cost * 1.1;
+    double rainSpeed = (cost - desired)/maxIteration;
+    int bestCost = cost;
+    
+    // Start Algorithm
+    int i = 0;
+    int lastImproved = 0;
+    uniform_int_distribution<int> randOpt(1,3);
+    uniform_int_distribution<int> randRise(1,5);
+    while (i < maxIteration) {
+        vector<int> newSolution;
+        int chooseOpt = randOpt(rng);
+        switch (1) {
+            case 1:
+                newSolution = moveAllExam(solution, conflictMatrix);
+                break;
+        }
+        // Update new cost:
+        int newCost = calculatePenalty(newSolution, conflictMatrix);
+        if ((newCost <= cost || newCost <= level) && countConflicts(newSolution, conflictMatrix) == 0) {
+            solution = newSolution;
+            cost = newCost;
+            lastImproved = 0;
+        } else {
+            lastImproved++;
+        }
+        // Update best cost
+        if (newCost < bestCost) {
+            bestSolution = newSolution;
+            bestCost = newCost;
+        }
+        // Update water level
+        level -= rainSpeed;
+
+        if (lastImproved >= 100 || level <= bestCost || cost <= desired) {
+            solution = bestSolution;
+            cost = bestCost;
+        }
+        if (cost <= desired) {
+            desired = cost * 0.8;
+            rainSpeed = (cost - desired) / (maxIteration - i);
+            level = cost * 1.1;
+        }
+        i++;
+    }
+    return bestSolution;
+}
+
+/************************************************************************main******************************************************************/
+int main (int argc, char *argv[]) { 
+
+    // calculate computation time
+    clock_t tStart = clock();
+
+    // random number seed
+    mt19937 rng(time(NULL));
+
+    /************************************************************ opening the file ************************************************************/
+    cout << endl << "Opening the file...." << endl;
+    if (argc != 2) {
+        cout << "input_instance" << endl;
+        exit(1);
+    }
+    
+    ifstream inFile(argv[1], ios::in);
+    
+    // input file could not be opened
+    if (!inFile) {
+        cout << "Error!! Input file: " << argv[1] << " could not be opened" << endl;
+        inFile.close();
+        exit(-1);
+    } // end if
+
+    // input data
+    // number of exams, students, and periods
+    int noOfExams, noOfStudents, noOfPeriods = 0;
+
+    string temp;
+
+    inFile >> temp;
+    noOfExams = stoi(temp);
+    // cout << "Number of Exams: " << noOfExams << "\n";
+
+    inFile >> temp;
+    noOfStudents = stoi(temp);
+    // cout << "Number of Student: " << noOfStudents << "\n";
+
+    inFile >> temp;
+    noOfPeriods = stoi(temp);
+    // cout << "Number of Periods: " << noOfPeriods << "\n";
+
+    // number of students registered to an exams
+    string exams[noOfExams];
+    double students[noOfStudents];
+    vector<vector<int>> largestEnrolment;
+    for (int i = 0; i < noOfExams; i++) {
+        inFile >> temp;
+        exams[i] = temp;
+        inFile >> temp;
+        students[i] = stoi(temp);
+        
+        largestEnrolment.push_back(vector<int>());
+        largestEnrolment[i].push_back(stoi(exams[i])-1);
+        largestEnrolment[i].push_back(students[i]-1);
+        // cout << "Exam " << exams[i] << ": " << students[i] << " students. \n";
+    }
+    sort(largestEnrolment.begin(), largestEnrolment.end(),sortcol); 
+
+    // for (int i = 0; i < noOfExams; i++) {
+    //     cout << studentsInExam[i][0] << "\t" << studentsInExam[i][1] << endl;
+    // }
+
+    // exams taken by a student
+    vector<vector<int>> examStudents;
+    // inFile >> temp;
+    int fileReader;
+    for (int i = 0; i < noOfExams; i++) {
+        examStudents.push_back(vector<int>());
+    }
+
+    while(inFile >> temp) {
+        int studentID = stoi(temp.erase(0,1)) - 1;
+        inFile >> temp;
+        examStudents[stoi(temp) - 1].push_back(studentID);
+    }
+    inFile.close(); 
+
+    /**************************************************************** Conflict Matrix ****************************************************************/
+
+    // conflict matrix
+    cout << "Creating conflict matrix....";
+    clock_t tConflictMatrix = clock();    
+    vector<vector<int>> conflictMatrix;
+    for (int exam = 0; exam < noOfExams; exam++) {
+        conflictMatrix.push_back(vector<int>());
+        for (int exam2 = 0; exam2 < noOfExams; exam2++) {
+            if (exam == exam2) {
+                conflictMatrix[exam].push_back(0);
+                // cout << conflictMatrix[exam][exam2] << " ";
+            } else {
+                conflictMatrix[exam].push_back(countDuplicates(examStudents[exam], examStudents[exam2]));
+                // cout << conflictMatrix[exam][exam2] << " ";
+            }
+        }
+        // cout << endl;
+    }
+    printf(" (time taken: %.2fs)\n", (double)(clock() - tConflictMatrix)/CLOCKS_PER_SEC);
+    
+    /*************************************************************** Initial Solution ***************************************************************/
+
+    // sort exam by largest degree
+    vector<vector<int>> largestDegree;
+    for (int exam = 0; exam < noOfExams; exam++) {
+        largestDegree.push_back(vector<int>());
+        int conflicts = 0;
+        for (int exam2 = 0; exam2 < noOfExams; exam2++) {
+            conflicts += min(conflictMatrix[exam][exam2],1);
+        }
+        largestDegree[exam].push_back(exam);
+        largestDegree[exam].push_back(conflicts);
+    }
+    sort(largestDegree.begin(), largestDegree.end(),sortcol);
+
+    // sort exam by largest weighted degree
+    vector<vector<int>> largestWeightedDegree;
+    for (int exam = 0; exam < noOfExams; exam++) {
+        largestWeightedDegree.push_back(vector<int>());
+        int conflicts = 0;
+        for (int exam2 = 0; exam2 < noOfExams; exam2++) {
+            conflicts += conflictMatrix[exam][exam2];
+        }
+        largestWeightedDegree[exam].push_back(exam);
+        largestWeightedDegree[exam].push_back(conflicts);
+    }
+    sort(largestWeightedDegree.begin(), largestWeightedDegree.end(),sortcol);
+
+    // generate solutions per period
+    clock_t tInitialSolution = clock();
+    cout << "Generating initial solution.... ";
+
+    // vector<int> solution = initialSolutionSD(noOfExams, noOfPeriods, conflictMatrix);
+    vector<int> solution1 = initialSolution(largestDegree, noOfPeriods, conflictMatrix);
+    // vector<int> solution2 = initialSolution(largestWeightedDegree, noOfPeriods, conflictMatrix);
+    // vector<int> solution3 = initialSolution(largestEnrolment, noOfPeriods, conflictMatrix);
+    // vector<int> solution4 = initialSolutionSD(noOfExams, noOfPeriods, conflictMatrix);
+
+    // for (int exam = 0; exam < noOfExams; exam++) {
+    //     // int sortedExam = studentsInExam[exam][0] - 1;
+    //     int sortedExam = potentialConflicts[exam][0];
+    //     // cout << sortedExam << endl;
+    //     for (int period = 0; period < noOfPeriods; period++) {
+    //         bool isSafe = 1;
+    //         for (auto examConflict = solutionPeriods[period].begin(); examConflict != solutionPeriods[period].end(); ++examConflict) {
+    //             if (conflictMatrix[sortedExam][*examConflict] > 0) {
+    //                 isSafe = 0;
+    //             }
+    //         }
+    //         if (isSafe) {
+    //             solutionPeriods[period].insert(sortedExam);
+    //             solutionExam.at(sortedExam) = period;
+    //             goto nextExam;
+    //         }
+    //         if (period == noOfPeriods - 1) {
+    //             solutionPeriods[period].insert(sortedExam);
+    //             solutionExam.at(sortedExam) = period;
+    //         }
+    //     }
+    //     nextExam:;
+    // }
+
+    // for (int exam = 0; exam < noOfExams; exam++) {
+    //     // int sortedExam = studentsInExam[exam][0] - 1;
+    //     int sortedExam = largestDegree[exam][0];
+    //     cout << sortedExam << ": ";
+    //     // finding safe periods
+    //     vector<int> safePeriods;
+    //     for (int period = 0; period < noOfPeriods; period++) {
+    //         bool isSafe = 1;
+    //         for (int exam2 = 0; exam2 < noOfExams; exam2++) {
+    //             if (conflictMatrix[sortedExam][exam2] > 0 && period == solution[exam2]) {
+    //                 isSafe = 0;
+    //             }
+    //         }
+    //         if (isSafe) {
+    //             safePeriods.push_back(period);
+    //             cout << period << " ";
+    //         }
+    //     }
+    //     // randomly choosing safe periods
+    //     uniform_int_distribution<int> randSafePeriod(0, safePeriods.size()-1);
+    //     uniform_int_distribution<int> randPeriod(0, noOfPeriods-1);
+    //     int chosenPeriod;
+    //     if (safePeriods.size() < 1) {
+    //         chosenPeriod = randPeriod(rng);
+    //         cout << "(all conflicts)";
+    //     } else {
+    //         // chosenPeriod = safePeriods[randSafePeriod(rng)];
+    //         chosenPeriod = safePeriods[0];
+    //     }
+    //     solution.at(sortedExam) = chosenPeriod;
+    //     cout << ": " << chosenPeriod << endl;
+    // }
+
+    // // Random Initial Solution
+    // uniform_int_distribution<int> gen(0, noOfPeriods-1);
+    // for (int i = 0; i < noOfExams; i++) {
+    //     solution.at(i) = gen(rng);
+    //     // cout << "exam " << i << ": period " << solutionExam[i] << endl;
+    // }
+
+    printf(" (time taken: %.2fs)\n", (double)(clock() - tInitialSolution)/CLOCKS_PER_SEC);
+
+    cout << "Solution 1: " << countConflicts(solution1, conflictMatrix) << endl;
+    // cout << "Solution 2: " << countConflicts(solution2, conflictMatrix) << endl;   
+    // cout << "Solution 3: " << countConflicts(solution3, conflictMatrix) << endl;
+    // cout << "Solution 4: " << countConflicts(solution4, conflictMatrix) << endl;
+
+    // // printing initial solution
+    // for (int exam = 0; exam < noOfExams; exam++) {
+    //     cout << exam + 1 << " " << solution4[exam] + 1 << endl;
+    // }
+
+    /*************************************************************** constaints and penalties *******************************************************/
+
+    // counting conflicting exams
+    int conflicts = countConflicts(solution1, conflictMatrix);
+    cout << "Initial solution conflicts: " << conflicts << endl;
+    
+    // calculating penalties
+    int penalty = calculatePenalty(solution1, conflictMatrix);
+    cout << "Initial solution penalties: " << penalty << endl;
+
+    double ofv = penalty / noOfStudents;
+    cout << "Initial solution objective value: " << ofv << endl;
+
+
+    /*********************************************************************** stage 1 ***************************************************************/
+
+    clock_t tStageOne = clock();
+    cout << "Generating stage one solution.... ";
+    
+    // while (conflicts > 0) {
+    //     solution = greatDeluge(solution, conflictMatrix, 500000);
+    //     conflicts = countConflicts(solution, conflictMatrix);
+    //     cout << "conflict: " << conflicts << endl;
+    // }
+
+    vector<int> solutionStage1 = greatDeluge(solution1, conflictMatrix, 10000);
+
+    printf(" (time taken: %.2fs)\n", (double)(clock() - tStageOne)/CLOCKS_PER_SEC);
+
+    // // printing initial solution
+    // for (int exam = 0; exam < noOfExams; exam++) {
+    //     cout << exam + 1 << " " << solutionExam[exam] + 1 << endl;
+    // }
+
+    conflicts = countConflicts(solutionStage1, conflictMatrix);
+    cout << "New solution conflicts: " << conflicts << endl;
+
+    // calculating penalties
+    penalty = calculatePenalty(solutionStage1, conflictMatrix);
+    cout << "New solution penalties: " << penalty << endl;
+
+    ofv = penalty / noOfStudents;
+    cout << "New solution objective value: " << ofv << endl;
+
+    // print computation time
+    printf("Time taken: %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
+
+    return 0;
+}

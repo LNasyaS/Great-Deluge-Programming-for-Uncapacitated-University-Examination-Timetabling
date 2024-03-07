@@ -1,0 +1,212 @@
+// THESIS LNASYA SYAFITRIE 2022
+// GREAT DELUGE ALGORITHM FOR UNCAPACITATED UNIVERSITY EXAMINATION TIMETABLING
+
+#include <iostream> // input output stream
+#include <cstdlib> // general utilities
+#include <fstream> // file Stream
+#include <vector> // store data
+#include <set>
+#include <iterator>
+#include <algorithm>   
+#include <random>
+#include <map> 
+#include <cstring>
+#include <time.h>
+
+using namespace std; 
+
+// function to find if there are duplicates in a vector
+bool noDuplicates(vector<int> a, vector<int> b) {
+    a.insert(a.end(), b.begin(), b.end());
+    sort(a.begin(), a.end());
+    auto it = unique(a.begin(), a.end());
+    bool wasUnique = (it == a.end());
+
+    return wasUnique;
+}
+
+// function to count duplicates
+int countDuplicates(vector<int> a, vector<int> b) {
+    a.insert(a.end(), b.begin(), b.end());
+    int allElements = a.size();
+    sort(a.begin(), a.end());
+    a.erase(unique(a.begin(), a.end()), a.end());
+    int duplicateElements = allElements - a.size();
+
+    return duplicateElements;
+}
+
+// main
+int main (int argc, char *argv[]) { 
+
+    // calculate computation time
+    clock_t tStart = clock();
+
+    /************************************************************ Opening the file ************************************************************/
+    cout << endl << "Opening the File...." << endl;
+    if (argc != 2) {
+        cout << "input_instance" << endl;
+        exit(1);
+    }
+    
+    ifstream inFile(argv[1], ios::in);
+    
+    // input file could not be opened
+    if (!inFile) {
+        cout << "Error!! Input file: " << argv[1] << " could not be opened" << endl;
+        inFile.close();
+        exit(-1);
+    } // end if
+
+    // input data
+    // number of exams, students, and periods
+    int noOfExams, noOfStudents, noOfPeriods = 0;
+
+    string temp;
+
+    inFile >> temp;
+    noOfExams = stoi(temp);
+    // cout << "Number of Exams: " << noOfExams << "\n";
+
+    inFile >> temp;
+    noOfStudents = stoi(temp);
+    // cout << "Number of Student: " << noOfStudents << "\n";
+
+    inFile >> temp;
+    noOfPeriods = stoi(temp);
+    // cout << "Number of Periods: " << noOfPeriods << "\n";
+
+    // number of students registered to an exams
+    string exams[noOfExams];
+    double students[noOfStudents];
+    
+    for (int i = 0; i < noOfExams; i++) {
+        inFile >> temp;
+        exams[i] = temp;
+        inFile >> temp;
+        students[i] = stoi(temp);
+        // cout << "Exam " << exams[i] << ": " << students[i] << " students. \n";
+    }
+
+    // exams taken by a student
+    cout << endl << "Creating Model Representation...." << endl;
+    vector<vector<int>> examStudents;
+    for (int i = 0; i < noOfExams; i++) {
+        examStudents.push_back(vector<int>());
+    }
+    
+    while(inFile >> temp) {
+        int studentsID = stoi(temp.erase(0,1)) - 1;
+        inFile >> temp;
+        examStudents[stoi(temp) - 1].push_back(studentsID); 
+    }
+
+    for (int i = 0; i < noOfExams; i++) {
+        // cout << "Exam " << i << ":\t";
+        for (int j = 0; j < examStudents[i].size(); j++) {
+            // cout << j << "\t";
+        }
+        // cout << endl;
+    }
+ 
+    inFile.close(); 
+
+    /************************************************************ Model Representation ************************************************************/
+ 
+    // conflict list
+    clock_t tconflictList = clock();
+    cout << "Creating Conflict List...." << endl;
+    vector<set<int>> conflictList;
+    for (int i = 0; i < noOfExams; i++) {
+        conflictList.push_back(set<int>());
+        // cout << "Exam no. " << i + 1 << ": ";
+        for (int j = i + 1; j < noOfExams; j++) {
+            if (!noDuplicates(examStudents[i], examStudents[j])) {
+                conflictList[i].insert(j);
+                // cout << j + 1 << " ";
+            }
+        }
+        // cout << endl;
+    }
+    printf(" (time taken: %.2fs)\n", (double)(clock() - tconflictList)/CLOCKS_PER_SEC);
+
+    // conflict matrix
+    clock_t tconflictMatrix = clock();
+    cout << "Creating Conflict Matrix...." << endl;
+    int conflictMatrix[noOfExams][noOfExams];
+    memset(conflictMatrix, 0, sizeof(conflictMatrix));
+    for (int i = 0; i < noOfExams; i++) {
+        for (int j = i + 1; j < noOfExams; j++) {
+            conflictMatrix[i][j] = countDuplicates(examStudents[i], examStudents[j]);
+        }
+        // cout << endl;
+    }
+    printf(" (time taken: %.2fs)\n", (double)(clock() - tconflictMatrix)/CLOCKS_PER_SEC);
+
+
+    /*************************************************************** Initial Solution ***************************************************************/
+
+    // generate initial solution
+    clock_t tinitialSolution = clock();
+    int seed = 10;
+    cout << "Generating Random Solution...." << endl;
+    int solution[noOfExams];
+    mt19937 rng(seed);
+    uniform_int_distribution<int> gen(0, noOfPeriods-1);
+    vector<set<int>> solutionPeriods;
+    for (int i = 0; i < noOfPeriods; i++) {
+        solutionPeriods.push_back(set<int>());
+    }
+    for (int k = 0; k < 1000; ++k) {
+        
+    }
+    for (int j = 0; j < noOfExams; j++) {
+        solutionPeriods[gen(rng)].insert(j);
+    } 
+    // for (int i = 0; i < noOfPeriods; i++) {
+    //     cout << "Period " << i << ":\t";
+    //     for (auto j = solutionPeriods[i].begin(); j != solutionPeriods[i].end(); ++j ){
+    //         cout << *j << "\t";
+    //     }
+    //     cout << endl;
+    // }
+    printf(" (time taken: %.2fs)\n", (double)(clock() - tinitialSolution)/CLOCKS_PER_SEC);
+
+    /*************************************************************** constaints and penalties *******************************************************/
+
+    // counting conflicting exams
+    clock_t tconflicts = clock();
+    int conflicts = 0;
+    for (int i = 0; i < noOfPeriods; i++) {
+        for (auto j = solutionPeriods[i].begin(); j != solutionPeriods[i].end(); ++j) {
+            for (auto k = solutionPeriods[i].begin(); k != solutionPeriods[i].end(); ++k) {
+                conflicts += min(1, conflictMatrix[*j][*k]);
+            }
+        }
+    }
+    cout << "Total conflicts: " << conflicts;
+    printf(" (time taken: %.2fs)\n", (double)(clock() - tconflicts)/CLOCKS_PER_SEC);
+    
+    // calculating penalties
+    // int penaltyWeight[] = {0,16,8,4,2,1};
+    // int penalty = 0;
+    // for (int i = 0; i < noOfExams; i++) {
+    //     for (auto j = conflictList[i].begin(); j != conflictList[i].end(); ++j) {
+    //         int distance = abs(solutionExam[i] - solutionExam[*j]);
+    //         if (distance <= 5) {
+    //             penalty += penaltyWeight[distance] * conflictMatrix[i][*j];
+    //             // cout << i << "\t" << *j << "\t" << penaltyWeight[distance] << endl;
+    //         }
+    //     }
+    // }
+    // cout << "Total penalties: " << penalty << endl;
+
+    // // objective function
+    // float ofv = penalty / noOfStudents;
+    // cout << "Objective Function: " << ofv << endl;
+
+    // print computation time
+    printf("Time taken: %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
+
+    return 0;
+}

@@ -1,0 +1,232 @@
+// THESIS LNASYA SYAFITRIE 2022
+// GREAT DELUGE ALGORITHM FOR UNCAPACITATED UNIVERSITY EXAMINATION TIMETABLING
+
+#include <iostream> // input output stream
+#include <cstdlib> // general utilities
+#include <fstream> // file Stream
+#include <vector> // store data
+#include <set>
+#include <algorithm>   
+#include <random> 
+#include <time.h>
+
+using namespace std; 
+
+// function to find if there are duplicates in a vector
+bool noDuplicates(vector<int> a, vector<int> b) {
+    a.insert(a.end(), b.begin(), b.end());
+    sort(a.begin(), a.end());
+    auto it = unique(a.begin(), a.end());
+    bool wasUnique = (it == a.end());
+
+    return wasUnique;
+}
+
+// main
+int main (int argc, char *argv[]) { 
+
+    // calculate computation time
+    clock_t tStart = clock();
+
+    /************************************************************ Opening the file ************************************************************/
+    if (argc != 2) {
+        cout << "input_instance" << endl;
+        exit(1);
+    }
+    
+    ifstream inFile(argv[1], ios::in);
+    
+    // input file could not be opened
+    if (!inFile) {
+        cout << "Error!! Input file: " << argv[1] << " could not be opened" << endl;
+        inFile.close();
+        exit(-1);
+    } // end if
+
+    // input data
+    // number of exams, students, and periods
+    int NoOfExams, NoOfStudents, NoOfPeriods;
+    NoOfExams, NoOfStudents, NoOfPeriods = 0;
+
+    string temp;
+
+    inFile >> temp;
+    NoOfExams = stoi(temp);
+    // cout << "Number of Exams: " << NoOfExams << "\n";
+
+    inFile >> temp;
+    NoOfStudents = stoi(temp);
+    // cout << "Number of Student: " << NoOfStudents << "\n";
+
+    inFile >> temp;
+    NoOfPeriods = stoi(temp);
+    // cout << "Number of Periods: " << NoOfPeriods << "\n";
+
+    // number of students registered to an exams
+    string exams[NoOfExams];
+    double students[NoOfStudents];
+    
+    for (int i = 0; i < NoOfExams; i++) {
+        inFile >> temp;
+        exams[i] = temp;
+        inFile >> temp;
+        students[i] = stoi(temp);
+        // cout << "Exam " << exams[i] << ": " << students[i] << " students. \n";
+    }
+
+    // exams taken by a student
+    vector<vector<string>> examsTaken;
+    int i = 0;
+    inFile >> temp;
+    while(!inFile.eof()) {
+        string studentsID = temp;
+        // cout << studentsID << " takes exam(s): ";
+        examsTaken.push_back(vector<string>());
+        while (studentsID == temp) { 
+            inFile >> temp;
+            examsTaken[i].push_back(temp);
+            inFile >> temp;
+        }
+        for (int j = 0; j < examsTaken[i].size(); j++) {
+            // cout << examsTaken[i][j] << " ";
+            }
+        i++;
+        // cout << endl;
+    }
+
+    inFile.close(); 
+
+    /************************************************************ Model Representation ************************************************************/
+    
+    // baca filenya kayak yg di bawah ini, biar ngga dua kali baca
+
+    // students in an exam
+    cout << endl << "Creating Model Representation...." << endl;
+    vector<vector<int>> examStudents;
+    for (int i = 0; i < NoOfExams; i++) {
+        examStudents.push_back(vector<int>());
+        // cout << "Exam " << i << ":\n";
+        for (int j = 0; j < NoOfStudents; j++) {
+            for (int k = 0; k < examsTaken[j].size(); k++) {
+                if (stoi(examsTaken[j][k]) - 1 == i) {
+                    // cout << j << "\t";
+                    examStudents[i].push_back(j - 1);
+                }
+            }
+        }
+        // cout << endl << endl;
+    }
+
+  // conflict List
+    cout << "Creating Conflict List...." << endl;
+    vector<vector<int>> conflictList;
+    for (int i = 0; i < NoOfExams; i++) {
+        conflictList.push_back(vector<int>());
+        // cout << "Exam no. " << i << ": ";
+        for (int j = i + 1; j < NoOfExams; j++) {
+            if (!noDuplicates(examStudents[i], examStudents[j])) {
+                conflictList[i].push_back(j);
+                // cout << j << " ";
+            }
+        }
+        // cout << endl;
+    }
+
+    /*************************************************************** Initial Solution ***************************************************************/
+
+    // generate random solution
+    int seed = 10;
+    cout << "Generating Random Solution...." << endl;
+
+    int solution[NoOfExams];
+    mt19937 rng(seed);
+    uniform_int_distribution<int> gen(0, NoOfPeriods-1);
+    for (int i = 0; i < NoOfExams; i++) {
+        solution[i] = gen(rng);
+        // cout << "exam " << i << ": period " << solution[i] << endl;
+    }
+
+    // random solutions per period
+    vector<set<int>> solutionPeriods;
+    for (int i = 0; i < NoOfPeriods; i++) {
+        solutionPeriods.push_back(set<int>());
+        // cout << "Period " << i+1 << ":\t"; 
+        for (int j = 0; j < NoOfExams; j++) {
+            if (i == solution[j]) {
+                solutionPeriods[i].insert(j);
+                // cout << j+1 << "\t";
+            }
+        }
+        // cout << endl;
+    }
+
+    // generate initial solution, sebisa muungkin jadwal yg gaada conflict list, di cek dulu ada conflict ngga, conflict listnya dibenerin juga biar ga loop
+
+    /*************************************************************** constaints and penalties *******************************************************/
+
+    // counting conflicting exams
+    int conflicts = 0;
+    for (int i = 0; i < NoOfExams; i++) {
+        for (int j = 0; j < conflictList[i].size(); j++) {
+            if (solutionExam[i] == solutionExam[conflictList[i][j]]) {
+                conflicts++;
+                // cout << "exam " << i << " conflicted with exam " << conflictList[i][j] << endl;
+            }
+        }
+    }
+    cout << "Total conflicts: " << conflicts << endl;
+
+    
+    // initialized penalties, objective function
+    int penalties [16,8,4,2,1];
+
+
+
+
+
+
+
+
+    // print computation time
+    printf("Time taken: %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
+
+    return 0;
+}
+
+
+
+ 
+
+
+
+
+
+
+        
+
+
+        
+        
+
+    
+
+
+
+    
+
+
+
+
+
+    
+
+    
+
+    
+
+
+
+    
+
+
+
